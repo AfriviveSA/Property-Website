@@ -15,7 +15,9 @@
     "cleanup:financials": "node --loader ts-node/esm scripts/cleanup-property-financials.ts",
     "cleanup:leases": "node --loader ts-node/esm scripts/cleanup-duplicate-leases.ts",
     "cleanup:tenants": "node --loader ts-node/esm scripts/cleanup-duplicate-tenants.ts",
-    "tenants:list": "node --loader ts-node/esm scripts/list-tenants.ts"
+    "tenants:list": "node --loader ts-node/esm scripts/list-tenants.ts",
+    "backup:portfolio-data": "node --loader ts-node/esm scripts/export-portfolio-backup.ts",
+    "reset:portfolio-data": "node --loader ts-node/esm scripts/reset-portfolio-data.ts"
   },
   "prisma": {
     "seed": "node --loader ts-node/esm prisma/seed.ts"

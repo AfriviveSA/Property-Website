@@ -50,12 +50,15 @@ const dbMock = {
   propertyIncome: {
     create: jest.fn(),
     findMany: jest.fn(),
-    groupBy: jest.fn()
+    groupBy: jest.fn(),
+    updateMany: jest.fn()
   },
   propertyExpense: {
     create: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
-    groupBy: jest.fn()
+    groupBy: jest.fn(),
+    update: jest.fn()
   },
   invoice: {
     findMany: jest.fn(),
@@ -68,9 +71,18 @@ const dbMock = {
     findMany: jest.fn(),
     update: jest.fn()
   },
+  recurringIncomeRule: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn()
+  },
   invoiceLineItem: {},
   propertyDocument: {
-    findMany: jest.fn()
+    findMany: jest.fn(),
+    create: jest.fn(),
+    delete: jest.fn()
   },
   calculation: {
     findFirst: jest.fn(),

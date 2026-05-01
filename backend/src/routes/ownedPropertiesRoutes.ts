@@ -203,14 +203,20 @@ async function getCurrentLeaseForProperty(userId: number, propertyId: number) {
 ownedPropertiesRoutes.get("/properties", async (req: AuthRequest, res) => {
   try {
     const now = new Date();
-    const { start: monthStart, end: monthEnd } = monthBounds(now);
+    const monthParam = typeof req.query.month === "string" ? req.query.month : null; // YYYY-MM
+    const base =
+      monthParam && /^\d{4}-\d{2}$/.test(monthParam)
+        ? new Date(Number(monthParam.slice(0, 4)), Number(monthParam.slice(5, 7)) - 1, 1)
+        : now;
+    const { start: monthStart, end: monthEnd } = monthBounds(base);
     const properties = await db.property.findMany({
       where: { userId: req.userId! },
       include: {
         leases: { where: { status: { in: ["ACTIVE", "MONTH_TO_MONTH"] } }, include: { tenant: true }, orderBy: { createdAt: "desc" } },
         tenants: true,
         incomeEntries: { where: { status: "RECEIVED", incomeDate: { gte: monthStart, lt: monthEnd } } },
-        expenses: { where: { status: "ACTIVE", expenseDate: { gte: monthStart, lt: monthEnd } } }
+        expenses: { where: { status: "ACTIVE", expenseDate: { gte: monthStart, lt: monthEnd } } },
+        invoices: { where: { status: { notIn: ["PAID", "CANCELLED"] } } }
       },
       orderBy: { createdAt: "desc" }
     });
@@ -220,11 +226,27 @@ ownedPropertiesRoutes.get("/properties", async (req: AuthRequest, res) => {
       const monthlyIncomeActual = p.incomeEntries.reduce((a, b) => a + b.amount, 0);
       // If user isn't capturing received income entries yet, fall back to lease rent so KPIs don't show nonsense.
       const monthlyIncome = monthlyIncomeActual > 0 ? monthlyIncomeActual : p.leases.reduce((a: number, l: any) => a + (l.monthlyRent ?? 0), 0);
-      const monthlyExpenses = p.expenses.reduce((a, b) => a + b.amount, 0);
+      const monthlyOperatingExpenses = (p.expenses as any[]).filter((e: any) => e.category !== "BOND_PAYMENT").reduce((a, b: any) => a + b.amount, 0);
+      const monthlyDebtService = (p.expenses as any[]).filter((e: any) => e.category === "BOND_PAYMENT").reduce((a, b: any) => a + b.amount, 0);
+      const monthlyExpenses = monthlyOperatingExpenses + monthlyDebtService;
+      const monthlyNOI = monthlyIncome - monthlyOperatingExpenses;
+      const monthlyCashFlowAfterDebtService = monthlyIncome - monthlyOperatingExpenses - monthlyDebtService;
       const displayStatus = activeLease ? leaseDisplayStatus({ status: activeLease.status, fixedTermEndDate: activeLease.fixedTermEndDate }) : "VACANT";
       const directTenant = p.tenants.find((t) => t.status === "ACTIVE") ?? null;
       const currentTenant = (activeLease?.tenant as any) ?? directTenant;
       const occupancyStatus = activeLease || directTenant ? "OCCUPIED" : "VACANT";
+
+      const in7 = new Date(now);
+      in7.setDate(in7.getDate() + 7);
+      const in90 = new Date(now);
+      in90.setDate(in90.getDate() + 90);
+      const openInvoices = p.invoices as any[];
+      const rentOverdue = openInvoices.some((inv: any) => inv.dueDate && new Date(inv.dueDate) < now);
+      const rentDueSoon = openInvoices.some((inv: any) => inv.dueDate && new Date(inv.dueDate) >= now && new Date(inv.dueDate) <= in7);
+
+      const leaseEnd = activeLease?.fixedTermEndDate ? new Date(activeLease.fixedTermEndDate) : null;
+      const leaseExpiringSoon = Boolean(leaseEnd && leaseEnd >= now && leaseEnd <= in90);
+      const leaseMonthToMonth = displayStatus === "MONTH_TO_MONTH";
       return {
         ...p,
         tenantStatus: activeLease ? "Occupied" : "Vacant",
@@ -249,8 +271,16 @@ ownedPropertiesRoutes.get("/properties", async (req: AuthRequest, res) => {
         allTenantsCount: p.tenants.length,
         monthlyRent: activeLease?.monthlyRent ?? 0,
         monthlyIncome,
+        monthlyOperatingExpenses,
+        monthlyDebtService,
         monthlyExpenses,
-        netCashFlow: monthlyIncome - monthlyExpenses
+        monthlyNOI,
+        monthlyCashFlowAfterDebtService,
+        netCashFlow: monthlyCashFlowAfterDebtService,
+        rentOverdue,
+        rentDueSoon,
+        leaseExpiringSoon,
+        leaseMonthToMonth
       };
     });
 
@@ -501,7 +531,14 @@ ownedPropertiesRoutes.get("/properties/dashboard-summary", async (req: AuthReque
   try {
     const propertyTypes = parseCsvParam(req.query.propertyTypes);
     const now = new Date();
-    const { start: monthStart, end: monthEnd } = monthBounds(now);
+    const monthParam = typeof req.query.month === "string" ? req.query.month : null; // YYYY-MM
+    const base =
+      monthParam && /^\d{4}-\d{2}$/.test(monthParam)
+        ? new Date(Number(monthParam.slice(0, 4)), Number(monthParam.slice(5, 7)) - 1, 1)
+        : now;
+    const { start: monthStart, end: monthEnd } = monthBounds(base);
+    const propertyId = req.query.propertyId != null ? Number(req.query.propertyId) : null;
+    if (propertyId != null && Number.isNaN(propertyId)) return res.status(400).json({ message: "Invalid propertyId" });
 
     const twelveMonthsAgo = new Date(now);
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
@@ -513,6 +550,9 @@ ownedPropertiesRoutes.get("/properties/dashboard-summary", async (req: AuthReque
     };
     if (propertyTypes.length) {
       whereProperty.investmentType = { in: propertyTypes };
+    }
+    if (propertyId != null) {
+      whereProperty.id = propertyId;
     }
 
     const properties = await db.property.findMany({
@@ -1080,7 +1120,7 @@ ownedPropertiesRoutes.get("/properties/dashboard-summary", async (req: AuthReque
     const kpiStatus = (value: number) => (value < 0 ? "negative" : "positive");
 
     const response = {
-      filters: { propertyTypes },
+      filters: { propertyTypes, propertyId, month: monthParam ?? null },
       kpis: {
         monthlyNOI: {
           value: monthlyNOI,

@@ -6,6 +6,8 @@ import { Section } from "../components/ui/Section";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { api, authHeader } from "../api/client";
+import { Line, Doughnut } from "react-chartjs-2";
+import { Chart as ChartJS, ArcElement, CategoryScale, Legend, LinearScale, LineElement, PointElement, Tooltip } from "chart.js";
 import {
   cancelLease,
   createPropertyTenant,
@@ -14,11 +16,15 @@ import {
   deletePropertyIncome,
   getProperty,
   getTenants,
+  getPortfolioDashboardSummary,
   linkTenantToProperty,
   updatePropertyIncome,
   updateLease,
   unlinkTenantFromProperty
 } from "../api/ownedProperties";
+import { WorkspaceTabs } from "../components/workspace/WorkspaceTabs";
+
+ChartJS.register(ArcElement, CategoryScale, LinearScale, Legend, Tooltip, PointElement, LineElement);
 
 export function OwnedPropertyDetailPage() {
   const { id } = useParams();
@@ -27,9 +33,11 @@ export function OwnedPropertyDetailPage() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState("");
   const [allTenants, setAllTenants] = useState<any[]>([]);
+  const [perf, setPerf] = useState<any>(null);
   const [linkTenantId, setLinkTenantId] = useState<number | "">("");
   const [newTenant, setNewTenant] = useState<any>({ firstName: "", lastName: "", email: "", phone: "", idNumber: "" });
-  const tab = useMemo(() => new URLSearchParams(search).get("tab") ?? "overview", [search]);
+  const tabRaw = useMemo(() => new URLSearchParams(search).get("tab") ?? "overview", [search]);
+  const tab = tabRaw === "lease" ? "leases" : tabRaw; // legacy alias
   const monthBounds = useMemo(() => {
     const now = new Date();
     return {
@@ -53,6 +61,7 @@ export function OwnedPropertyDetailPage() {
       try {
         setData(await getProperty(id));
         setAllTenants(await getTenants());
+        setPerf(await getPortfolioDashboardSummary({ propertyId: Number(id), month: new Date().toISOString().slice(0, 7) }));
       } catch (e: any) {
         setError(e?.response?.data?.message ?? "Failed to load property.");
       }
@@ -198,11 +207,21 @@ export function OwnedPropertyDetailPage() {
         {data ? (
           <>
             <h1 className="pg-h2" style={{ marginTop: 0 }}>{data.name}</h1>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              {["overview", "tenants", "lease", "financials", "invoices", "documents"].map((k) => (
-                <Link key={k} to={`/owned-properties/${id}?tab=${k}`} className={`pg-btn ${tab === k ? "pg-btn-primary" : "pg-btn-ghost"}`}>{k[0].toUpperCase() + k.slice(1)}</Link>
-              ))}
+            <div className="pg-muted" style={{ margin: "6px 0 12px" }}>
+              Manage this asset’s financials, leases, tenants and documents in one workspace.
             </div>
+            <WorkspaceTabs
+              basePath={`/owned-properties/${id}`}
+              active={tab}
+              tabs={[
+                { key: "overview", label: "Overview" },
+                { key: "financials", label: "Financials" },
+                { key: "leases", label: "Leases" },
+                { key: "tenants", label: "Tenants" },
+                { key: "documents", label: "Documents" },
+                { key: "performance", label: "Performance" }
+              ]}
+            />
             <Card>
               {tab === "overview" ? (
                 <div style={{ display: "grid", gap: 12 }}>
@@ -341,7 +360,7 @@ export function OwnedPropertyDetailPage() {
                 </div>
               ) : null}
 
-              {tab === "lease" ? (
+              {tab === "leases" ? (
                 <div style={{ display: "grid", gap: 10 }}>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <Link className="pg-btn pg-btn-ghost" to="/leases">Create Lease</Link>
@@ -495,17 +514,58 @@ export function OwnedPropertyDetailPage() {
                 </div>
               ) : null}
 
-              {tab === "invoices" ? (
-                <div style={{ display: "grid", gap: 10 }}>
-                  <div className="pg-muted">{data.invoices?.length ?? 0} invoices.</div>
-                  <Link className="pg-btn pg-btn-ghost" to={`/invoices`}>Open invoices</Link>
-                </div>
-              ) : null}
-
               {tab === "documents" ? (
                 <div style={{ display: "grid", gap: 10 }}>
                   <div className="pg-muted">{data.documents?.length ?? 0} documents.</div>
                   <Link className="pg-btn pg-btn-ghost" to={`/documents`}>Open documents</Link>
+                </div>
+              ) : null}
+
+              {tab === "performance" ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <Card title="Monthly NOI trend">
+                    {perf?.charts?.monthlyNOITrend?.length ? (
+                      <Line
+                        data={{
+                          labels: perf.charts.monthlyNOITrend.map((r: any) => r.label),
+                          datasets: [
+                            {
+                              label: "Monthly NOI",
+                              data: perf.charts.monthlyNOITrend.map((r: any) => r.noi),
+                              borderColor: "#20C997",
+                              backgroundColor: "rgba(32,201,151,0.2)"
+                            }
+                          ]
+                        }}
+                      />
+                    ) : (
+                      <div className="pg-muted">No performance trend available yet.</div>
+                    )}
+                  </Card>
+                  <Card title="Expense mix (month)">
+                    {perf?.charts?.incomeExpenseComposition?.length ? (
+                      <Doughnut
+                        data={{
+                          labels: (perf.charts.incomeExpenseComposition as any[]).filter((r: any) => r.type === "expense").map((r: any) => r.category),
+                          datasets: [
+                            {
+                              data: (perf.charts.incomeExpenseComposition as any[]).filter((r: any) => r.type === "expense").map((r: any) => r.amount),
+                              backgroundColor: ["#FFB020", "#20C997", "#4D96FF", "#FF4D4F", "#9B59B6", "#00C2A8"]
+                            }
+                          ]
+                        }}
+                      />
+                    ) : (
+                      <div className="pg-muted">No expense data captured for this month.</div>
+                    )}
+                  </Card>
+                  <Card title="Actions">
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <Link className="pg-btn pg-btn-ghost" to={`/owned-properties/${id}?tab=financials`}>Review financials</Link>
+                      <Link className="pg-btn pg-btn-ghost" to={`/owned-properties/${id}?tab=leases`}>Review leases</Link>
+                      <Link className="pg-btn pg-btn-ghost" to={`/owned-properties/${id}?tab=documents`}>Review documents</Link>
+                    </div>
+                  </Card>
                 </div>
               ) : null}
             </Card>

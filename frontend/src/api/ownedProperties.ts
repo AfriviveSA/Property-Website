@@ -1,8 +1,19 @@
 import { api, authHeader } from "./client";
 
-export async function getProperties() {
-  const res = await api.get("/properties", { headers: authHeader() });
+export async function getProperties(params?: { month?: string }) {
+  const qs = params?.month ? `?month=${encodeURIComponent(params.month)}` : "";
+  const res = await api.get(`/properties${qs}`, { headers: authHeader() });
   return res.data?.properties ?? res.data;
+}
+
+export async function getPortfolioDashboardSummary(params?: { propertyTypes?: string[]; propertyId?: number | null; month?: string | null }) {
+  const p = new URLSearchParams();
+  if (params?.propertyTypes?.length) p.set("propertyTypes", params.propertyTypes.join(","));
+  if (params?.propertyId != null) p.set("propertyId", String(params.propertyId));
+  if (params?.month) p.set("month", params.month);
+  const qs = p.toString() ? `?${p.toString()}` : "";
+  const res = await api.get(`/properties/dashboard-summary${qs}`, { headers: authHeader() });
+  return res.data;
 }
 
 export async function createProperty(payload: Record<string, unknown>) {
