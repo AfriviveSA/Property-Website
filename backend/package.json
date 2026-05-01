@@ -1,0 +1,54 @@
+{
+  "name": "the-property-guy-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "jest tests/unit",
+    "test:integration": "jest tests/integration",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev --name init",
+    "confirm:admin": "node --loader ts-node/esm scripts/confirm-admin.ts",
+    "cleanup:financials": "node --loader ts-node/esm scripts/cleanup-property-financials.ts",
+    "cleanup:leases": "node --loader ts-node/esm scripts/cleanup-duplicate-leases.ts",
+    "cleanup:tenants": "node --loader ts-node/esm scripts/cleanup-duplicate-tenants.ts",
+    "tenants:list": "node --loader ts-node/esm scripts/list-tenants.ts"
+  },
+  "prisma": {
+    "seed": "node --loader ts-node/esm prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "chartjs-node-canvas": "^5.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.1.1",
+    "pdfmake": "^0.2.15",
+    "stripe": "^16.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.14",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^22.9.0",
+    "@types/pdfmake": "^0.2.11",
+    "@types/supertest": "^6.0.2",
+    "jest": "^29.7.0",
+    "prisma": "^5.22.0",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

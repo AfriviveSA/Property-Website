@@ -1,0 +1,525 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionStatus {
+  FREE
+  TRIAL
+  SUBSCRIBED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum PropertyType {
+  HOUSE
+  APARTMENT
+  TOWNHOUSE
+  DUPLEX
+  ROOM
+  COMMERCIAL
+  OTHER
+}
+
+enum InvestmentPropertyType {
+  LONG_TERM_RENTAL
+  SHORT_TERM_RENTAL
+  PRIMARY_RESIDENCE
+  HOUSE_HACK
+  BRRRR
+  FLIP
+  VACANT_LAND
+  COMMERCIAL
+  MIXED_USE
+  OTHER
+}
+
+enum FlipProjectStage {
+  ACQUISITION
+  RENOVATION
+  FOR_SALE
+  SOLD
+}
+
+enum BRRRRStage {
+  ACQUISITION
+  RENOVATION
+  RENTED
+  REFINANCED
+}
+
+enum LandUse {
+  RESIDENTIAL
+  AGRICULTURAL
+  COMMERCIAL
+  INDUSTRIAL
+  OTHER
+}
+
+enum TenantStatus {
+  ACTIVE
+  PAST
+  APPLICANT
+}
+
+enum LeaseStatus {
+  ACTIVE
+  MONTH_TO_MONTH
+  CANCELLED
+  EXPIRED
+  TERMINATED
+  DRAFT
+  ARCHIVED
+}
+
+enum LeaseType {
+  FIXED_TERM
+  MONTH_TO_MONTH
+}
+
+enum LeaseCancelledBy {
+  LANDLORD
+  TENANT
+  MUTUAL
+}
+
+enum PropertyDocumentType {
+  LEASE_AGREEMENT
+  ID_DOCUMENT
+  PROOF_OF_PAYMENT
+  MUNICIPAL_ACCOUNT
+  INSURANCE
+  INSPECTION
+  OTHER
+}
+
+enum PropertyExpenseCategory {
+  RATES_TAXES
+  WATER
+  ELECTRICITY
+  LEVIES
+  INSURANCE
+  MAINTENANCE
+  REPAIRS
+  MANAGEMENT_FEES
+  BOND_PAYMENT
+  ACCOUNTING
+  OTHER
+}
+
+enum RecurringFrequency {
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+enum PropertyExpenseSource {
+  PROPERTY_SETUP
+  MANUAL_FINANCIAL_ENTRY
+  INVOICE
+  IMPORT
+  SYSTEM
+}
+
+enum PropertyExpenseStatus {
+  ACTIVE
+  CANCELLED
+  ARCHIVED
+}
+
+enum PropertyIncomeCategory {
+  RENT
+  DEPOSIT
+  LATE_FEE
+  UTILITIES_RECOVERY
+  OTHER
+}
+
+enum PropertyIncomeSource {
+  LEASE_EXPECTED
+  MANUAL_FINANCIAL_ENTRY
+  INVOICE
+  IMPORT
+  SYSTEM
+}
+
+enum PropertyIncomeStatus {
+  EXPECTED
+  RECEIVED
+  CANCELLED
+  ARCHIVED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum RecurringIncomeRuleStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+model User {
+  id                  Int                @id @default(autoincrement())
+  email               String             @unique
+  name                String?
+  password_hash       String
+  role                UserRole           @default(USER)
+  created_at          DateTime           @default(now())
+  subscription_status SubscriptionStatus @default(FREE)
+  free_uses_remaining Int?               @default(3)
+  subscription_start  DateTime?
+  subscription_end    DateTime?
+  email_confirmed     Boolean            @default(false)
+  confirmation_token  String?
+  calculations        Calculation[]
+  subscriptions       Subscription[]
+  properties          Property[]
+  tenants             Tenant[]
+  leases              Lease[]
+  propertyDocuments   PropertyDocument[]
+  propertyExpenses    PropertyExpense[]
+  propertyIncome      PropertyIncome[]
+  recurringIncomeRules RecurringIncomeRule[]
+  invoices            Invoice[]
+  recurringInvoiceRules RecurringInvoiceRule[]
+}
+
+model Calculation {
+  id          Int      @id @default(autoincrement())
+  user_id     Int
+  type        String
+  input_json  String
+  result_json String
+  created_at  DateTime @default(now())
+  pdf_path    String?
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model Subscription {
+  id                  Int      @id @default(autoincrement())
+  user_id             Int
+  start_date          DateTime
+  end_date            DateTime?
+  status              String
+  payment_provider_id String?
+  user                User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model Property {
+  id                    Int      @id @default(autoincrement())
+  userId                 Int
+  name                   String
+  propertyType           PropertyType
+  investmentType         InvestmentPropertyType @default(LONG_TERM_RENTAL)
+  addressLine1           String
+  addressLine2           String?
+  suburb                 String?
+  city                   String
+  province               String
+  postalCode             String?
+  country                String   @default("South Africa")
+  erfNumber              String?
+  sizeSqm                Float?
+  bedrooms               Int?
+  bathrooms              Int?
+  parkingBays            Int?
+  purchasePrice          Float
+  purchaseDate           DateTime?
+  currentEstimatedValue  Float?
+  outstandingBondBalance Float?
+  monthlyBondPayment     Float?
+  totalCashInvested      Float?
+  bondCosts              Float?
+  transferCosts          Float?
+  holdingPeriodYears     Int?
+  estimatedSellingCostPercent Float?
+  expectedMonthlyIncome  Float?
+  expectedMonthlyExpenses Float?
+  status                 String?
+  notes                  String?
+
+  // Vacant Land
+  landUse                LandUse?
+  zoning                 String?
+  ratesAndTaxesMonthly   Float?
+  leviesMonthly          Float?
+  securityMonthly        Float?
+  maintenanceMonthly     Float?
+  expectedAnnualAppreciationPercent Float?
+
+  // Short-Term Rental
+  averageDailyRate       Float?
+  occupancyRate          Float?
+  availableNightsPerMonth Int?
+  platformFeePercent     Float?
+  cleaningFeesMonthly    Float?
+  managementFeePercent   Float?
+  furnishingValue        Float?
+  monthlyUtilities       Float?
+
+  // Flip
+  rehabBudget            Float?
+  holdingCostsMonthly    Float?
+  expectedSalePrice      Float?
+  targetSaleDate         DateTime?
+  projectStage           FlipProjectStage?
+
+  // BRRRR
+  afterRepairValue       Float?
+  refinanceAmount        Float?
+  brrrrStage             BRRRRStage?
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  owner                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenants                Tenant[]
+  leases                 Lease[]
+  expenses               PropertyExpense[]
+  incomeEntries          PropertyIncome[]
+  invoices               Invoice[]
+  documents              PropertyDocument[]
+  recurringInvoiceRules  RecurringInvoiceRule[]
+  recurringIncomeRules   RecurringIncomeRule[]
+
+  @@index([userId])
+}
+
+model Tenant {
+  id                     Int         @id @default(autoincrement())
+  userId                  Int
+  propertyId              Int?
+  firstName               String
+  lastName                String
+  email                   String?
+  phone                   String?
+  idNumber                String?
+  emergencyContactName    String?
+  emergencyContactPhone   String?
+  status                  TenantStatus @default(APPLICANT)
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+  owner                   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property                Property?  @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  leases                  Lease[]
+  incomeEntries           PropertyIncome[]
+  invoices                Invoice[]
+  recurringInvoiceRules   RecurringInvoiceRule[]
+  recurringIncomeRules    RecurringIncomeRule[]
+
+  @@index([userId])
+  @@index([propertyId])
+}
+
+model Lease {
+  id                Int         @id @default(autoincrement())
+  userId             Int
+  propertyId         Int
+  tenantId           Int
+  startDate          DateTime
+  fixedTermEndDate   DateTime?  @map("endDate")
+  leaseType          LeaseType  @default(FIXED_TERM)
+  monthlyRent        Float
+  depositAmount      Float
+  rentDueDay         Int         @default(1)
+  escalationPercent  Float?
+  escalationDate     DateTime?
+  status             LeaseStatus @default(DRAFT)
+  cancellationDate   DateTime?
+  cancellationReason String?
+  cancelledBy        LeaseCancelledBy?
+  leaseDocumentId    Int?        @unique
+  notes              String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  owner              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property           Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant             Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leaseDocument      PropertyDocument? @relation("LeaseDocument", fields: [leaseDocumentId], references: [id], onDelete: SetNull)
+  documents          PropertyDocument[]
+  invoices           Invoice[]
+  recurringInvoiceRules RecurringInvoiceRule[]
+  incomeEntries      PropertyIncome[]
+  recurringIncomeRule RecurringIncomeRule?
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([tenantId])
+}
+
+model PropertyDocument {
+  id            Int                 @id @default(autoincrement())
+  userId         Int
+  propertyId     Int
+  leaseId        Int?
+  documentType   PropertyDocumentType
+  fileName       String
+  filePath       String
+  mimeType       String
+  fileSize       Int
+  uploadedAt     DateTime            @default(now())
+  owner          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property       Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  lease          Lease?              @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+  leaseOwner     Lease?              @relation("LeaseDocument")
+
+  @@index([userId])
+  @@index([propertyId])
+}
+
+model PropertyExpense {
+  id                 Int                   @id @default(autoincrement())
+  userId              Int
+  propertyId          Int
+  category            PropertyExpenseCategory
+  description         String
+  amount              Float
+  expenseDate         DateTime
+  isRecurring         Boolean               @default(false)
+  recurringFrequency  RecurringFrequency?
+  source              PropertyExpenseSource @default(MANUAL_FINANCIAL_ENTRY)
+  status              PropertyExpenseStatus @default(ACTIVE)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  owner               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property            Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([status])
+}
+
+model PropertyIncome {
+  id          Int                    @id @default(autoincrement())
+  userId       Int
+  propertyId   Int
+  tenantId     Int?
+  leaseId      Int?
+  category     PropertyIncomeCategory
+  description  String
+  amount       Float
+  incomeDate   DateTime
+  source       PropertyIncomeSource  @default(MANUAL_FINANCIAL_ENTRY)
+  status       PropertyIncomeStatus  @default(RECEIVED)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  owner        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property     Property               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant       Tenant?                @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  lease        Lease?                 @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([tenantId])
+  @@index([leaseId])
+  @@index([status])
+}
+
+model RecurringIncomeRule {
+  id                       Int                   @id @default(autoincrement())
+  userId                    Int
+  propertyId                Int
+  tenantId                  Int
+  leaseId                   Int                  @unique
+  category                  PropertyIncomeCategory @default(RENT)
+  amount                    Float
+  frequency                 RecurringFrequency    @default(MONTHLY)
+  dayOfMonth                Int                   @default(1)
+  startDate                 DateTime
+  endDate                   DateTime?
+  status                    RecurringIncomeRuleStatus @default(ACTIVE)
+  autoCreateExpectedEntries Boolean               @default(true)
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  owner                     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property                  Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant                    Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lease                     Lease                 @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([tenantId])
+  @@index([status])
+}
+
+model Invoice {
+  id          Int           @id @default(autoincrement())
+  userId       Int
+  propertyId   Int
+  tenantId     Int
+  leaseId      Int?
+  invoiceNumber String      @unique
+  invoiceDate   DateTime
+  dueDate       DateTime
+  status        InvoiceStatus @default(DRAFT)
+  subtotal      Float
+  total         Float
+  notes         String?
+  pdfPath       String?
+  sentAt        DateTime?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  owner         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property      Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lease         Lease?        @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+  lineItems     InvoiceLineItem[]
+
+  @@index([userId])
+  @@index([propertyId])
+}
+
+model InvoiceLineItem {
+  id           Int      @id @default(autoincrement())
+  invoiceId    Int
+  description  String
+  quantity     Float
+  unitPrice    Float
+  total        Float
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model RecurringInvoiceRule {
+  id                        Int                @id @default(autoincrement())
+  userId                     Int
+  propertyId                 Int
+  tenantId                   Int
+  leaseId                    Int?
+  enabled                    Boolean            @default(false)
+  frequency                  RecurringFrequency @default(MONTHLY)
+  dayOfMonth                 Int                @default(1)
+  nextRunDate                DateTime
+  invoiceDescription         String             @default("Monthly Rent")
+  rentAmount                 Float
+  includeUtilities           Boolean            @default(false)
+  emailTenant                Boolean            @default(false)
+  tenantPermissionConfirmed  Boolean            @default(false)
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+  owner                      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property                   Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant                     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lease                      Lease?             @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([propertyId])
+}
